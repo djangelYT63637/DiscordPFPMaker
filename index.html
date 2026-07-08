@@ -1,528 +1,304 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord PFP Studio Pro - IndexedDB Vault & Sync</title>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Avatar Studio Master Edition</title>
     <style>
-        :root {
-            --bg-dark: #1e1f22;
-            --panel-bg: #2b2d31;
-            --input-bg: #313338;
-            --text-normal: #dbdee1;
-            --text-muted: #949ba4;
-            --accent: #5865f2;
-            --accent-hover: #4752c4;
-            --border: #3f4147;
-            --success: #23a55a;
-            --danger: #da373c;
-        }
-
-        * { box-sizing: border-box; }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-normal);
-            margin: 0;
-            padding: 15px;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .studio-wrapper {
-            background-color: var(--panel-bg);
-            border-radius: 12px;
-            box-shadow: 0 10px 35px rgba(0,0,0,0.6);
-            width: 100%;
-            max-width: 1150px;
-            padding: 20px;
-            display: flex;
-            gap: 20px;
-        }
-
-        .controls-pane {
-            flex: 1.3;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            max-height: 85vh;
-            overflow-y: auto;
-            padding-right: 8px;
-        }
-
-        .preview-pane {
-            flex: 0.7;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background-color: var(--input-bg);
-            border-radius: 8px;
-            padding: 18px;
-            border: 1px solid var(--border);
-            height: fit-content;
-            position: sticky;
-            top: 0;
-        }
-
-        h2 { margin: 0 0 2px 0; font-size: 1.3rem; color: #f2f3f5; }
-        h3 { margin: 0 0 8px 0; font-size: 0.9rem; color: #f2f3f5; text-transform: uppercase; letter-spacing: 0.5px;}
-        .subtitle { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; }
-
-        .upload-box {
-            border: 2px dashed #4e5058;
-            padding: 15px;
-            border-radius: 6px;
-            text-align: center;
-            cursor: pointer;
-            transition: border-color 0.2s;
-            font-size: 0.85rem;
-            display: block;
-        }
-        .upload-box:hover { border-color: var(--accent); }
-        input[type="file"] { display: none; }
-
-        .control-group {
-            background-color: var(--input-bg);
-            padding: 12px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
-
-        .control-group label {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.8rem;
-            font-weight: 500;
-            margin-bottom: 5px;
-        }
-
-        .control-row { display: flex; gap: 8px; align-items: center; }
-        input[type="range"] { flex: 1; accent-color: var(--accent); }
-        input[type="color"] { border: none; width: 34px; height: 28px; border-radius: 4px; cursor: pointer; background: none; }
-        
-        select {
-            width: 100%;
-            padding: 8px;
-            background-color: var(--bg-dark);
-            color: var(--text-normal);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            font-size: 0.85rem;
-        }
-
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.8rem;
-            cursor: pointer;
-        }
-
-        .preview-box {
-            position: relative;
-            width: 240px;
-            height: 240px;
-            background-image: 
-                linear-gradient(45deg, #383a40 25%, transparent 25%), 
-                linear-gradient(-45deg, #383a40 25%, transparent 25%), 
-                linear-gradient(45deg, transparent 75%, #383a40 75%), 
-                linear-gradient(-45deg, transparent 75%, #383a40 75%);
-            background-size: 16px 16px;
-            background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
-            border-radius: 8px;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid var(--border);
-            margin-bottom: 12px;
-        }
-
-        .preview-box.circle-mask::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border: 2px dashed rgba(88, 101, 242, 0.9);
-            border-radius: 50%;
-            pointer-events: none;
-        }
-
-        canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
-
-        button {
-            background-color: var(--accent);
-            color: white;
-            border: none;
-            padding: 10px;
-            font-size: 0.9rem;
-            font-weight: 500;
-            border-radius: 6px;
-            cursor: pointer;
-            width: 100%;
-            transition: background-color 0.2s, transform 0.1s;
-        }
-        button:hover { background-color: var(--accent-hover); }
-        button:active { transform: scale(0.98); }
-        button:disabled { background-color: #4e5058; cursor: not-allowed; transform: none; }
-
-        .btn-secondary { background-color: #4e5058; padding: 4px 8px; font-size: 0.75rem; width: auto; }
-        .btn-secondary:hover { background-color: #6d6f78; }
-        .btn-success { background-color: var(--success); }
-        .btn-success:hover { background-color: #1a8547; }
-        .btn-danger { background-color: var(--danger); }
-        .btn-danger:hover { background-color: #a92b2f; }
-
-        .vault-container {
-            margin-top: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            width: 100%;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .vault-item {
-            background-color: var(--bg-dark);
-            padding: 8px;
-            border-radius: 4px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.75rem;
-            border: 1px solid var(--border);
-        }
-
-        .sync-row {
-            display: flex;
-            gap: 6px;
-            width: 100%;
-            margin-top: 8px;
-        }
-
-        .info-text { font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-top: 6px; }
-
-        @media (max-width: 768px) {
-            .studio-wrapper { flex-direction: column; }
-            .controls-pane { max-height: none; }
-            .preview-pane { position: relative; }
-        }
+        :root { --bg:#0e0f11; --pan:#1e1f22; --inp:#2b2d31; --txt:#dbdee1; --mut:#949ba4; --acc:#5865f2; --brd:#3f4147; --ok:#23a55a; }
+        * { box-sizing:border-box; }
+        body { font-family:sans-serif; background:var(--bg); color:var(--txt); margin:0; padding:8px; min-height:100vh; display:flex; align-items:center; justify-content:center; }
+        .wrapper { background:var(--pan); border-radius:12px; box-shadow:0 12px 45px rgba(0,0,0,0.7); width:100%; max-width:1150px; padding:16px; display:flex; gap:16px; }
+        .pane-ctrl { flex:1.3; display:flex; flex-direction:column; gap:6px; max-height:90vh; overflow-y:auto; padding-right:4px; }
+        .pane-prev { flex:0.7; display:flex; flex-direction:column; align-items:center; background:var(--inp); border-radius:8px; padding:16px; border:1px solid var(--brd); height:fit-content; position:sticky; top:0; }
+        h2 { margin:0; font-size:1.2rem; color:#fff; } .sub { font-size:0.72rem; color:var(--mut); margin-bottom:4px; }
+        h3 { margin:0 0 2px 0; font-size:0.72rem; color:#fff; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--brd); padding-bottom:2px; }
+        .upload-box { border:2px dashed #4e5058; padding:12px; border-radius:6px; text-align:center; cursor:pointer; background:var(--bg); font-weight:bold; font-size:0.8rem; display:block; }
+        .upload-box:hover { border-color:var(--acc); } #imageInput { display:none; }
+        .grp { background:var(--inp); padding:8px; border-radius:6px; border:1px solid var(--brd); display:flex; flex-direction:column; gap:3px; }
+        .grp label { display:flex; justify-content:between; font-size:0.72rem; font-weight:bold; }
+        .row { display:flex; gap:6px; align-items:center; justify-content:space-between; } input[type="range"] { flex:1; accent-color:var(--acc); }
+        input[type="color"] { border:none; width:30px; height:22px; cursor:pointer; background:none; padding:0; }
+        select, input[type="text"] { width:100%; padding:5px; background:var(--bg); color:var(--txt); border:1px solid var(--brd); border-radius:4px; font-size:0.75rem; }
+        .chk { display:flex; align-items:center; gap:5px; font-size:0.72rem; cursor:pointer; }
+        .box-prev { position:relative; width:220px; height:220px; background-image:linear-gradient(45deg,#383a40 25%,transparent 25%),linear-gradient(-45deg,#383a40 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#383a40 75%),linear-gradient(-45deg,transparent 75%,#383a40 75%); background-size:12px 12px; background-position:0 0,0 6px,6px -6px,-6px 0; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid var(--brd); margin-bottom:12px; }
+        .box-prev.mask::after { content:''; position:absolute; inset:0; border:2px dashed rgba(88,101,242,0.8); border-radius:50%; pointer-events:none; }
+        canvas { max-width:100%; max-height:100%; display:block; }
+        button { background:var(--acc); color:#fff; border:none; padding:10px; font-size:0.85rem; font-weight:bold; border-radius:6px; cursor:pointer; width:100%; }
+        button:hover { background:#4752c4; } button:disabled { background:#4e5058; cursor:not-allowed; }
+        .btn-s { background:#4e5058; padding:2px 5px; font-size:0.68rem; width:auto; border-radius:4px; color:#fff; cursor:pointer; border:none; }
+        .btn-ok { background:var(--ok); } .vault { margin-top:6px; display:flex; flex-direction:column; gap:4px; width:100%; max-height:90px; overflow-y:auto; }
+        .v-item { background:var(--bg); padding:4px; border-radius:4px; display:flex; justify-content:space-between; align-items:center; font-size:0.68rem; border:1px solid var(--brd); }
+        @media(max-width:768px){.wrapper{flex-direction:column;}.pane-ctrl{max-height:none;}.pane-prev{position:relative;}}
     </style>
 </head>
 <body>
 
-<div class="studio-wrapper">
-    <!-- Controls Pane -->
-    <div class="controls-pane">
-        <div>
-            <h2>Discord Studio Master Pro</h2>
-            <div class="subtitle">IndexedDB Engine + Multi-Device Backup Pipeline</div>
-        </div>
+<div class="wrapper">
+    <div class="pane-ctrl">
+        <div><h2>Discord Avatar Studio</h2><div class="sub">Ultimate Master Engine (Shadow FX Update)</div></div>
+        
+        <input type="file" id="imageInput" accept="image/*">
+        <label class="upload-box" for="imageInput"><span id="lbl">📁 CLICK TO CHOOSE IMAGE</span></label>
 
-        <label class="upload-box" for="imageInput">
-            <span id="uploadLabel">📁 Drag or Upload Transparent PNG</span>
-            <input type="file" id="imageInput" accept="image/png, image/webp">
-        </label>
-
-        <!-- Resolution Profile Choice -->
-        <div class="control-group">
-            <h3>Output Configuration</h3>
-            <label for="resSelect">Export Dimension Profile</label>
-            <select id="resSelect">
-                <option value="1024">1024 x 1024 Master (Ultimate Sharpness)</option>
-                <option value="512">512 x 512 HD Standard</option>
-                <option value="256">256 x 256 Regular Display</option>
-                <option value="128">128 x 128 Compact Thumbnail</option>
-                <option value="source">Keep Original Upload Proportions</option>
-            </select>
-        </div>
-
-        <!-- Scale, Crop & Rotation -->
-        <div class="control-group">
-            <h3>Transform & Alignment</h3>
-            <label for="scaleRange">Scale <span id="scaleVal">75</span>%</label>
-            <input type="range" id="scaleRange" min="10" max="200" value="75" disabled>
-            
-            <label for="rotateRange" style="margin-top: 8px;">Rotation <span id="rotateVal">0</span>°</label>
-            <input type="range" id="rotateRange" min="-180" max="180" value="0" disabled>
-        </div>
-
-        <!-- Position Controls -->
-        <div class="control-group">
-            <label>
-                Manual Axis Centering
-                <button class="btn-secondary" id="centerBtn" disabled>Snap Center</button>
-            </label>
-            <div class="control-row" style="margin-bottom: 5px;">
-                <span style="font-size:0.7rem; color:var(--text-muted); width: 12px;">X:</span>
-                <input type="range" id="offsetX" min="-300" max="300" value="0" disabled>
-            </div>
-            <div class="control-row">
-                <span style="font-size:0.7rem; color:var(--text-muted); width: 12px;">Y:</span>
-                <input type="range" id="offsetY" min="-300" max="300" value="0" disabled>
+        <div class="grp">
+            <h3>Output Profiles</h3>
+            <div class="row">
+                <select id="res" style="flex:1;"><option value="1024">1024x1024 Ultra Master</option><option value="512">512x512 HD</option><option value="256">256x256 Standard</option></select>
+                <select id="fmt" style="flex:1;"><option value="image/png">Export PNG</option><option value="image/jpeg">Export JPEG</option></select>
             </div>
         </div>
-
-        <!-- Background Controls -->
-        <div class="control-group">
-            <h3>Canvas Background Fill</h3>
-            <label class="checkbox-label">
-                <input type="checkbox" id="enableBg" disabled> Solid Background Color
-            </label>
-            <div class="control-row" style="margin-top: 5px;">
-                <input type="color" id="bgColorPicker" value="#313338" disabled>
-                <span>Select Shade Swatch</span>
+        <div class="grp">
+            <h3>Transformations</h3>
+            <label>Scale <span id="v-sc">100</span>%</label><input type="range" id="sc" min="10" max="300" value="100" disabled>
+            <label>Rotation <span id="v-rt">0</span>°</label><input type="range" id="rt" min="-180" max="180" value="0" disabled>
+        </div>
+        <div class="grp">
+            <label>Nudge Calibration <button class="btn-s" id="cn" disabled>Center Axis</button></label>
+            <div class="row"><span style="font-size:0.68rem;width:10px;">X:</span><input type="range" id="ox" min="-1000" max="1000" value="0" disabled></div>
+            <div class="row"><span style="font-size:0.68rem;width:10px;">Y:</span><input type="range" id="oy" min="-1000" max="1000" value="0" disabled></div>
+        </div>
+        <div class="grp">
+            <h3>Advanced Background Engine</h3>
+            <label class="chk"><input type="checkbox" id="e-bg" disabled> Activate Canvas Fill Background</label>
+            <div class="row">
+                <select id="bg-t" style="width:90px;" disabled><option value="solid">Solid</option><option value="grad">Gradient</option></select>
+                <input type="color" id="c-bg" value="#313338" disabled>
+                <input type="color" id="c-bg2" value="#1e1f22" disabled>
+                <input type="range" id="bg-a" min="0" max="360" value="45" title="Gradient Angle" disabled>
+                <span style="font-size:0.65rem;">Angle</span>
             </div>
         </div>
-
-        <!-- Primary Outline -->
-        <div class="control-group">
-            <h3>Inner Outline Profile</h3>
-            <label class="checkbox-label">
-                <input type="checkbox" id="enableOutline1" disabled> Primary Boundary Border
-            </label>
-            <div class="control-row" style="margin-top: 5px;">
-                <input type="color" id="outlineColor1" value="#ffffff" disabled>
-                <input type="range" id="outlineWidth1" min="1" max="25" value="4" disabled>
+        <div class="grp">
+            <h3>Pixel-Accurate Alpha Borders</h3>
+            <label class="chk"><input type="checkbox" id="e-b1" disabled> Enable Primary Silhouette Ring</label>
+            <div class="row"><input type="color" id="c-b1" value="#ffffff" disabled><input type="range" id="w-b1" min="1" max="25" value="4" disabled><span>Thickness</span></div>
+            <label class="chk" style="margin-top:2px;"><input type="checkbox" id="e-b2" disabled> Enable Secondary Outer Ring</label>
+            <div class="row"><input type="color" id="c-b2" value="#5865f2" disabled><input type="range" id="w-b2" min="1" max="35" value="8" disabled><span>Thickness</span></div>
+        </div>
+        <div class="grp">
+            <h3>Silhouette Drop Shadow FX</h3>
+            <label class="chk"><input type="checkbox" id="e-sh" disabled> Project Alpha Depth Shadow</label>
+            <div class="row"><input type="color" id="c-sh" value="#000000" disabled><input type="range" id="b-sh" min="0" max="40" value="12" disabled><span>Blur</span></div>
+            <div class="row">
+                <div style="flex:1; display:flex; gap:4px; align-items:center;"><span style="font-size:0.65rem;">Offset X:</span><input type="range" id="x-sh" min="-30" max="30" value="4" disabled></div>
+                <div style="flex:1; display:flex; gap:4px; align-items:center;"><span style="font-size:0.65rem;">Offset Y:</span><input type="range" id="y-sh" min="-30" max="30" value="6" disabled></div>
             </div>
         </div>
-
-        <!-- Secondary Outline -->
-        <div class="control-group">
-            <h3>Outer Outline Profile</h3>
-            <label class="checkbox-label">
-                <input type="checkbox" id="enableOutline2" disabled> Secondary Sticker Border
-            </label>
-            <div class="control-row" style="margin-top: 5px;">
-                <input type="color" id="outlineColor2" value="#5865f2" disabled>
-                <input type="range" id="outlineWidth2" min="1" max="35" value="8" disabled>
+        <div class="grp">
+            <h3>Studio Filter Array</h3>
+            <label>Brightness <span id="v-br">100</span>%</label><input type="range" id="br" min="20" max="200" value="100" disabled>
+            <label>Contrast <span id="v-co">100</span>%</label><input type="range" id="co" min="20" max="200" value="100" disabled>
+            <label>Saturation <span id="v-sa">100</span>%</label><input type="range" id="sa" min="0" max="200" value="100" disabled>
+            <div class="row">
+                <div style="flex:1;"><label>Blur <span id="v-bl">0</span>px</label><input type="range" id="bl" min="0" max="20" value="0" disabled></div>
+                <div style="flex:1;"><label>Sepia <span id="v-se">0</span>%</label><input type="range" id="se" min="0" max="100" value="0" disabled></div>
             </div>
+            <label class="chk" style="margin-top:2px;"><input type="checkbox" id="inv" disabled> Invert Output Spectrum</label>
         </div>
-
-        <!-- Visual Image Adjustments -->
-        <div class="control-group">
-            <h3>Image Effects Filters</h3>
-            <label for="brightRange">Brightness <span id="brightVal">100</span>%</label>
-            <input type="range" id="brightRange" min="50" max="200" value="100" disabled>
-            <label for="contrastRange" style="margin-top: 5px;">Contrast <span id="contrastVal">100</span>%</label>
-            <input type="range" id="contrastRange" min="50" max="200" value="100" disabled>
+        <div class="grp">
+            <h3>Vignette & Color Filters</h3>
+            <label class="chk"><input type="checkbox" id="e-vig" disabled> Matte Vignette Edges</label>
+            <label class="chk"><input type="checkbox" id="e-tnt" disabled> Ambient Color Tint Wash</label>
+            <div class="row"><input type="color" id="c-tnt" value="#5865f2" disabled><input type="range" id="w-tnt" min="5" max="90" value="25" disabled><span>Intensity</span></div>
         </div>
     </div>
 
-    <!-- Preview Pane -->
-    <div class="preview-pane">
-        <div class="preview-box circle-mask" id="previewContainer">
-            <canvas id="canvas"></canvas>
+    <div class="pane-prev">
+        <div class="box-prev mask" id="pBox"><canvas id="cv"></canvas></div>
+        <label class="chk"><input type="checkbox" id="tMsk" checked> Discord Crop Guide Overlay</label>
+        <label class="chk" style="margin-bottom:10px;"><input type="checkbox" id="tGrid"> Alignment Target Crosshairs</label>
+        <button id="dl" style="margin-bottom:10px;" disabled>Download Image</button>
+        <div id="info" style="font-size:0.75rem;font-weight:bold;">State: Idle</div>
+        <hr style="width:100%;border:0;border-top:1px solid var(--brd);margin:8px 0;">
+        <h3 style="align-self:flex-start;font-size:0.72rem;">💾 Core Project Vault</h3>
+        <div style="display:flex;gap:4px;width:100%;">
+            <input type="text" id="vName" placeholder="Project tag..." style="flex:1;padding:5px;background:var(--bg);border:1px solid var(--brd);border-radius:4px;color:#fff;font-size:0.75rem;">
+            <button class="btn-s btn-ok" id="vSave" style="padding:4px 10px;" disabled>Save</button>
         </div>
-        
-        <label class="checkbox-label" style="margin-bottom: 15px;">
-            <input type="checkbox" id="toggleMask" checked> Toggle Circle Preview Overlay
-        </label>
-
-        <button id="downloadBtn" style="margin-bottom: 12px;" disabled>Download Final Avatar</button>
-        <div class="info-text" id="dimensionInfo">Upload state: Idle</div>
-
-        <hr style="width: 100%; border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
-
-        <!-- Project Vault via IndexedDB -->
-        <h3 style="align-self: flex-start; font-size: 0.8rem;">💾 Unlimited IndexedDB Vault</h3>
-        <div style="display: flex; gap: 6px; width: 100%;">
-            <input type="text" id="vaultName" placeholder="Project Name..." style="flex:1; padding: 6px; background: var(--bg-dark); border:1px solid var(--border); border-radius:4px; color:white; font-size:0.8rem;">
-            <button class="btn-secondary btn-success" id="saveVaultBtn" style="padding:6px 12px;" disabled>Save</button>
+        <div class="vault" id="vCont"></div>
+        <div style="display:flex;gap:4px;width:100%;margin-top:6px;">
+            <button class="btn-s" id="exB" style="flex:1;">Backup Storage</button><button class="btn-s" id="imB" style="flex:1;">Restore Package</button>
+            <input type="file" id="bIn" accept=".json" style="display:none;">
         </div>
-        
-        <div class="vault-container" id="vaultContainer"></div>
-
-        <!-- Cross-Device Sync Controls -->
-        <div class="sync-row">
-            <button class="btn-secondary" id="exportBackupBtn" style="flex: 1;">📤 Export Backup (.JSON)</button>
-            <button class="btn-secondary" id="importBackupTrigger" style="flex: 1;">📥 Import Backup</button>
-            <input type="file" id="backupFileInput" accept=".json" style="display: none;">
-        </div>
-        <div class="info-text" style="color: var(--text-muted); margin-top: 4px;">Sync and backup layouts flawlessly across machines.</div>
     </div>
 </div>
 
 <script>
-    // Elements Mapping
-    const imageInput = document.getElementById('imageInput');
-    const uploadLabel = document.getElementById('uploadLabel');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d', { alpha: true });
-    
-    const resSelect = document.getElementById('resSelect');
-    const scaleRange = document.getElementById('scaleRange');
-    const scaleVal = document.getElementById('scaleVal');
-    const rotateRange = document.getElementById('rotateRange');
-    const rotateVal = document.getElementById('rotateVal');
-    const offsetX = document.getElementById('offsetX');
-    const offsetY = document.getElementById('offsetY');
-    const centerBtn = document.getElementById('centerBtn');
-    
-    const enableBg = document.getElementById('enableBg');
-    const bgColorPicker = document.getElementById('bgColorPicker');
-    
-    const enableOutline1 = document.getElementById('enableOutline1');
-    const outlineColor1 = document.getElementById('outlineColor1');
-    const outlineWidth1 = document.getElementById('outlineWidth1');
-    
-    const enableOutline2 = document.getElementById('enableOutline2');
-    const outlineColor2 = document.getElementById('outlineColor2');
-    const outlineWidth2 = document.getElementById('outlineWidth2');
+    const el = id => document.getElementById(id);
+    const cv = el('cv'), ctx = cv.getContext('2d');
+    let img = null, fName = 'avatar.png', dUrl = '', db = null;
 
-    const brightRange = document.getElementById('brightRange');
-    const brightVal = document.getElementById('brightVal');
-    const contrastRange = document.getElementById('contrastRange');
-    const contrastVal = document.getElementById('contrastVal');
-    
-    const toggleMask = document.getElementById('toggleMask');
-    const previewContainer = document.getElementById('previewContainer');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const dimensionInfo = document.getElementById('dimensionInfo');
-    
-    const vaultName = document.getElementById('vaultName');
-    const saveVaultBtn = document.getElementById('saveVaultBtn');
-    const vaultContainer = document.getElementById('vaultContainer');
-    
-    const exportBackupBtn = document.getElementById('exportBackupBtn');
-    const importBackupTrigger = document.getElementById('importBackupTrigger');
-    const backupFileInput = document.getElementById('backupFileInput');
-
-    let img = null;
-    let baseFileName = 'avatar.png';
-    let rawImgDataStr = ''; 
-    let renderRequested = false;
-    let db = null;
-
-    // Initialize IndexedDB Datastore Engine
-    const dbRequest = indexedDB.open('DiscordPfpStudioStore', 1);
-    dbRequest.onupgradeneeded = (e) => {
-        db = e.target.result;
-        if (!db.objectStoreNames.contains('projects')) {
-            db.createObjectStore('projects', { keyPath: 'id' });
-        }
-    };
-    dbRequest.onsuccess = (e) => {
-        db = e.target.result;
-        updateVaultDisplay();
-    };
-
-    imageInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        loadImgFromFile(file);
+    el('imageInput').addEventListener('change', e => {
+        const file = e.target.files[0]; if (!file) return;
+        fName = file.name; el('lbl').textContent = "📁 " + file.name; el('info').textContent = "Calibrating Matrix...";
+        const r = new FileReader(); r.onload = ev => { dUrl = ev.target.result; loadImg(); }; r.readAsDataURL(file);
     });
 
-    function loadImgFromFile(file) {
-        baseFileName = file.name;
-        uploadLabel.textContent = "📁 " + file.name;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            rawImgDataStr = event.target.result;
-            initImageState();
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function initImageState() {
-        img = new Image();
+    function loadImg() {
+        if (!dUrl) return; img = new Image();
         img.onload = () => {
-            dimensionInfo.textContent = `Asset Resolution: ${img.width}x${img.height}`;
-            
-            [scaleRange, rotateRange, offsetX, offsetY, centerBtn, enableBg, bgColorPicker, 
-             enableOutline1, outlineColor1, outlineWidth1, enableOutline2, outlineColor2, outlineWidth2,
-             brightRange, contrastRange, downloadBtn, saveVaultBtn]
-            .forEach(el => el.disabled = false);
-
-            offsetX.min = -img.width; offsetX.max = img.width;
-            offsetY.min = -img.height; offsetY.max = img.height;
-
-            triggerRender();
+            el('info').textContent = `Natively Unlocked: ${img.width}x${img.height}`;
+            ['sc','rt','ox','oy','cn','e-bg','bg-t','c-bg','c-bg2','bg-a','e-b1','c-b1','w-b1','e-b2','c-b2','w-b2','dl','br','co','sa','bl','se','inv','e-vig','e-tnt','c-tnt','w-tnt','e-sh','c-sh','b-sh','x-sh','y-sh'].forEach(i => el(i).disabled = false);
+            if(db) el('vSave').disabled = false;
+            el('ox').min = -img.width; el('ox').max = img.width; el('oy').min = -img.height; el('oy').max = img.height;
+            draw();
         };
-        img.src = rawImgDataStr;
+        img.src = dUrl;
     }
 
-    // Input Pipeline Triggers
-    [scaleRange, rotateRange, offsetX, offsetY, enableBg, bgColorPicker, 
-     enableOutline1, outlineColor1, outlineWidth1, enableOutline2, outlineColor2, outlineWidth2,
-     brightRange, contrastRange, resSelect]
-    .forEach(el => {
-        el.addEventListener('input', () => {
-            scaleVal.textContent = scaleRange.value;
-            rotateVal.textContent = rotateRange.value;
-            brightVal.textContent = brightRange.value;
-            contrastVal.textContent = contrastRange.value;
-            triggerRender();
-        });
-        el.addEventListener('change', triggerRender);
+    const trgs = ['sc','rt','ox','oy','e-bg','bg-t','c-bg','c-bg2','bg-a','e-b1','c-b1','w-b1','e-b2','c-b2','w-b2','res','fmt','br','co','sa','bl','se','inv','e-vig','e-tnt','c-tnt','w-tnt','tGrid','e-sh','c-sh','b-sh','x-sh','y-sh'];
+    trgs.forEach(i => {
+        el(i).addEventListener('input', () => { el('v-sc').textContent=el('sc').value; el('v-rt').textContent=el('rt').value; el('v-br').textContent=el('br').value; el('v-co').textContent=el('co').value; el('v-sa').textContent=el('sa').value; el('v-bl').textContent=el('bl').value; el('v-se').textContent=el('se').value; draw(); });
+        el(i).addEventListener('change', draw);
     });
 
-    centerBtn.addEventListener('click', () => {
-        offsetX.value = 0;
-        offsetY.value = 0;
-        triggerRender();
-    });
+    el('cn').addEventListener('click', () => { el('ox').value = 0; el('oy').value = 0; draw(); });
+    el('tMsk').addEventListener('change', () => el('pBox').classList.toggle('mask', el('tMsk').checked));
 
-    toggleMask.addEventListener('change', () => {
-        previewContainer.classList.toggle('circle-mask', toggleMask.checked);
-    });
-
-    function triggerRender() {
-        if (renderRequested) return;
-        renderRequested = true;
-        requestAnimationFrame(() => {
-            renderCanvas();
-            renderRequested = false;
-        });
+    // Generates completely separate transparent mask instances for flawless mathematical overlays
+    function getIsolatedSubjectCanvas(wMaster, hMaster) {
+        const oCv = document.createElement('canvas'), oCtx = oCv.getContext('2d');
+        oCv.width = wMaster; oCv.height = hMaster;
+        oCtx.save();
+        oCtx.translate(wMaster/2 + parseFloat(el('ox').value), hMaster/2 + parseFloat(el('oy').value));
+        oCtx.rotate(parseFloat(el('rt').value)*Math.PI/180);
+        const aspect = img.width / img.height;
+        let rw = wMaster * (parseFloat(el('sc').value)/100), rh = hMaster * (parseFloat(el('sc').value)/100);
+        if (aspect > 1) rh = rw / aspect; else rw = rh * aspect;
+        oCtx.drawImage(img, -rw/2, -rh/2, rw, rh);
+        oCtx.restore();
+        return oCv;
     }
 
-    function drawGpuEdgeStickers(targetCtx, imageObj, x, y, w, h, outlineWidth, outlineColor) {
-        targetCtx.save();
-        targetCtx.shadowColor = outlineColor;
-        targetCtx.shadowBlur = 0; 
-        const s = outlineWidth;
-        const vectors = [[s, 0], [-s, 0], [0, s], [0, -s], [s, s], [-s, -s], [s, -s], [-s, s]];
-        for (let i = 0; i < vectors.length; i++) {
-            targetCtx.shadowOffsetX = vectors[i][0];
-            targetCtx.shadowOffsetY = vectors[i][1];
-            targetCtx.drawImage(imageObj, x, y, w, h);
+    function drawPerfectOutline(c, baseLayer, thick, color) {
+        c.save(); c.shadowColor = color; c.shadowBlur = 0;
+        for (let y = -thick; y <= thick; y++) {
+            for (let x = -thick; x <= thick; x++) {
+                if (x*x + y*y <= thick*thick) c.drawImage(baseLayer, x, y);
+            }
         }
-        targetCtx.restore();
+        c.restore();
     }
 
-    function renderCanvas() {
-        if (!img) return;
-
-        const profile = resSelect.value;
-        let wMaster = img.width;
-        let hMaster = img.height;
-
-        if (profile !== 'source') {
-            wMaster = parseInt(profile);
-            hMaster = parseInt(profile);
-        }
-
-        canvas.width = wMaster;
-        canvas.height = hMaster;
-        ctx.clearRect(0, 0, wMaster, hMaster);
-
-        if (enableBg.checked) {
-            ctx.fillStyle = bgColorPicker.value;
-            ctx.fillRect(0, 0, wMaster, hMaster);
-        }
-
-        ctx.save();
-        ctx.filter = `brightness(${brightRange.value}%) contrast(${contrastRange.value}%)`;
-
-        const scale = parseFloat(scaleRange.value) / 100;
-        const rot = parseFloat(rotateRange.value) * Math.PI / 180;
+    function draw() {
+        if (!img || !img.width) return;
+        const size = parseInt(el('res').value); cv.width = size; cv.height = size; ctx.clearRect(0,0,size,size);
         
-        const wRender = wMaster * scale;
-        const hRender = hMaster * scale;
-        const cx = wMaster / 2 + parseFloat(offsetX.value);
-        const cy = hMaster / 2 + parseFloat(offsetY.value);
+        // Background Matrix Fill Pass
+        if(el('e-bg').checked) {
+            if(el('bg-t').value === 'solid') {
+                ctx.fillStyle = el('c-bg').value; ctx.fillRect(0,0,size,size);
+            } else {
+                const ang = parseFloat(el('bg-a').value) * Math.PI / 180;
+                const x2 = size/2 + (size/2) * Math.cos(ang), y2 = size/2 + (size/2) * Math.sin(ang);
+                const x1 = size/2 - (size/2) * Math.cos(ang), y1 = size/2 - (size/2) * Math.sin(ang);
+                const grd = ctx.createLinearGradient(x1,y1,x2,y2);
+                grd.addColorStop(0, el('c-bg').value); grd.addColorStop(1, el('c-bg2').value);
+                ctx.fillStyle = grd; ctx.fillRect(0,0,size,size);
+            }
+        }
+        
+        const isolatedAsset = getIsolatedSubjectCanvas(size, size);
 
-        ctx.imageSmoothingEnabled = true;
-              
+        // Alpha Depth Drop Shadow Sub-System Pass
+        if(el('e-sh').checked) {
+            ctx.save();
+            ctx.shadowColor = el('c-sh').value;
+            ctx.shadowBlur = parseInt(el('b-sh').value);
+            ctx.shadowOffsetX = parseInt(el('x-sh').value);
+            ctx.shadowOffsetY = parseInt(el('y-sh').value);
+            ctx.drawImage(isolatedAsset, 0, 0);
+            ctx.restore();
+        }
+
+        // Concentric Outline Core Vector Pipeline
+        if(el('e-b2').checked && parseInt(el('w-b2').value)>0) {
+            const comp = parseInt(el('w-b2').value) + (el('e-b1').checked ? parseInt(el('w-b1').value) : 0);
+            drawPerfectOutline(ctx, isolatedAsset, comp, el('c-b2').value);
+        }
+        if(el('e-b1').checked && parseInt(el('w-b1').value)>0) drawPerfectOutline(ctx, isolatedAsset, parseInt(el('w-b1').value), el('c-b1').value);
+        
+        // Subject Composition Rendering with Multi-Filter Hardware Passes
+        ctx.save();
+        let fStr = `brightness(${el('br').value}%) contrast(${el('co').value}%) saturate(${el('sa').value}%) blur(${el('bl').value}px) sepia(${el('se').value}%)`;
+        if (el('inv').checked) fStr += ' invert(100%)';
+        ctx.filter = fStr;
+        ctx.drawImage(isolatedAsset, 0, 0);
+        ctx.restore();
+
+        // Overlay Post-Effects Shaders
+        if(el('e-vig').checked) {
+            const vGrd = ctx.createRadialGradient(size/2,size/2,size*0.3,size/2,size/2,size*0.7);
+            vGrd.addColorStop(0, 'transparent'); vGrd.addColorStop(1, 'rgba(0,0,0,0.85)');
+            ctx.fillStyle = vGrd; ctx.fillRect(0,0,size,size);
+        }
+        if(el('e-tnt').checked) {
+            ctx.fillStyle = el('c-tnt').value; ctx.globalAlpha = parseFloat(el('w-tnt').value)/100; ctx.fillRect(0,0,size,size); ctx.globalAlpha = 1.0;
+        }
+        if(el('tGrid').checked) {
+            ctx.strokeStyle = 'rgba(88,101,242,0.4)'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(size/2,0); ctx.lineTo(size/2,size); ctx.moveTo(0,size/2); ctx.lineTo(size,size/2); ctx.stroke();
+        }
+    }
+
+    el('dl').addEventListener('click', () => {
+        const ext = el('fmt').value === 'image/jpeg' ? 'jpg' : 'png';
+        const a = document.createElement('a'); a.download = `studio_master_${Date.now()}.${ext}`; a.href = cv.toDataURL(el('fmt').value, 0.92); a.click();
+    });
+
+    setTimeout(() => {
+        try {
+            const req = indexedDB.open('MasterStudioDB', 1);
+            req.onupgradeneeded = e => { if (!e.target.result.objectStoreNames.contains('m')) e.target.result.createObjectStore('m', {keyPath:'id'}); };
+            req.onsuccess = e => { db = e.target.result; refreshV(); if(img) el('vSave').disabled = false; };
+        } catch(err) { console.log(err); }
+    }, 50);
+
+    el('vSave').addEventListener('click', () => {
+        if(!dUrl || !db) return; const t = el('vName').value.trim() || `Profile (${new Date().toLocaleTimeString()})`;
+        const o = { id:'m_'+Date.now(), title:t, img:dUrl, fn:fName, sc:el('sc').value, rt:el('rt').value, x:el('ox').value, y:el('oy').value, bg:el('e-bg').checked, bgt:el('bg-t').value, bgc:el('c-bg').value, bgc2:el('c-bg2').value, bga:el('bg-a').value, b1:el('e-b1').checked, b1c:el('c-b1').value, b1w:el('w-b1').value, b2:el('e-b2').checked, b2c:el('c-b2').value, b2w:el('w-b2').value, rs:el('res').value, br:el('br').value, co:el('co').value, sa:el('sa').value, bl:el('bl').value, se:el('se').value, inv:el('inv').checked, vig:el('e-vig').checked, tnt:el('e-tnt').checked, tntc:el('c-tnt').value, tntw:el('w-tnt').value, sh:el('e-sh').checked, shc:el('c-sh').value, shb:el('b-sh').value, shx:el('x-sh').value, shy:el('y-sh').value };
+        const tx = db.transaction('m','readwrite'); tx.objectStore('m').put(o); tx.oncomplete = () => { el('vName').value=''; refreshV(); };
+    });
+
+    function refreshV() {
+        if(!db) return; const c = el('vCont'); c.innerHTML = '';
+        db.transaction('m','readonly').objectStore('m').getAll().onsuccess = e => {
+            const items = e.target.result; if(!items.length) { c.innerHTML='<div style="font-size:0.7rem;color:var(--mut);text-align:center;padding:5px;">Vault Empty</div>'; return; }
+            items.forEach(i => {
+                const d = document.createElement('div'); d.className='v-item';
+                d.innerHTML = `<span style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:bold;">${i.title}</span><div><button class="btn-s" style="background:#5865f2;padding:2px 4px;" onclick="ldV('${i.id}')">Load</button><button class="btn-s" style="background:#da373c;padding:2px 4px;margin-left:2px;" onclick="delV('${i.id}')">✕</button></div>`;
+                c.appendChild(d);
+            });
+        };
+    }
+
+    window.ldV = id => {
+        db.transaction('m','readonly').objectStore('m').get(id).onsuccess = e => {
+            const o = e.target.result; if(!o) return;
+            dUrl = o.img; fName = o.fn; el('lbl').textContent = "📁 "+fName;
+            el('sc').value = o.sc; el('rt').value = o.rt; el('ox').value = o.x; el('oy').value = o.y;
+            el('e-bg').checked = o.bg; el('bg-t').value = o.bgt; el('c-bg').value = o.bgc; el('c-bg2').value = o.bgc2; el('bg-a').value = o.bga;
+            el('e-b1').checked = o.b1; el('c-b1').value = o.b1c; el('w-b1').value = o.b1w; el('e-b2').checked = o.b2; el('c-b2').value = o.b2c; el('w-b2').value = o.b2w; el('res').value = o.rs || '1024';
+            el('br').value = o.br; el('co').value = o.co; el('sa').value = o.sa; el('bl').value = o.bl||0; el('se').value = o.se||0; el('inv').checked = o.inv;
+            el('e-vig').checked = o.vig; el('e-tnt').checked = o.tnt; el('c-tnt').value = o.tntc; el('w-tnt').value = o.tntw;
+            el('e-sh').checked = o.sh||false; el('c-sh').value = o.shc||'#000000'; el('b-sh').value = o.shb||12; el('x-sh').value = o.shx||4; el('y-sh').value = o.shy||6;
+            loadImg();
+        };
+    };
+
+    window.delV = id => { const tx = db.transaction('m','readwrite'); tx.objectStore('m').delete(id); tx.oncomplete = refreshV; };
+    el('exB').addEventListener('click', () => {
+        db.transaction('m','readonly').objectStore('m').getAll().onsuccess = e => {
+            const a = document.createElement('a'); a.download='studio_master_backup.json'; a.href=URL.createObjectURL(new Blob([JSON.stringify(e.target.result)],{type:'application/json'})); a.click();
+        };
+    });
+    el('imB').addEventListener('click', () => el('bIn').click());
+    el('bIn').addEventListener('change', e => {
+        const file = e.target.files[0]; if(!file) return;
+        const r = new FileReader(); r.onload = ev => {
+            try { const arr = JSON.parse(ev.target.result); const tx = db.transaction('m','readwrite'); const s = tx.objectStore('m'); arr.forEach(i => s.put(i)); tx.oncomplete = refreshV; } catch(err) { alert('Error reading file package'); }
+        }; r.readAsText(file);
+    });
+</script>
+</body>
+</html>
