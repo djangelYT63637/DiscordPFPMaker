@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord PFP Studio Pro - IndexedDB Vault & Sync</title>
+    <style>
+        :root {
+            --bg-dark: #1e1f22;
+            --panel-bg: #2b2d31;
+            --input-bg: #313338;
+            --text-normal: #dbdee1;
+            --text-muted: #949ba4;
+            --accent: #5865f2;
+            --accent-hover: #4752c4;
+            --border: #3f4147;
+            --success: #23a55a;
+            --danger: #da373c;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-normal);
+            margin: 0;
+            padding: 15px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .studio-wrapper {
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 35px rgba(0,0,0,0.6);
+            width: 100%;
+            max-width: 1150px;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .controls-pane {
+            flex: 1.3;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .preview-pane {
+            flex: 0.7;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: var(--input-bg);
+            border-radius: 8px;
+            padding: 18px;
+            border: 1px solid var(--border);
+            height: fit-content;
+            position: sticky;
+            top: 0;
+        }
+
+        h2 { margin: 0 0 2px 0; font-size: 1.3rem; color: #f2f3f5; }
+        h3 { margin: 0 0 8px 0; font-size: 0.9rem; color: #f2f3f5; text-transform: uppercase; letter-spacing: 0.5px;}
+        .subtitle { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; }
+
+        .upload-box {
+            border: 2px dashed #4e5058;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            font-size: 0.85rem;
+            display: block;
+        }
+        .upload-box:hover { border-color: var(--accent); }
+        input[type="file"] { display: none; }
+
+        .control-group {
+            background-color: var(--input-bg);
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .control-row { display: flex; gap: 8px; align-items: center; }
+        input[type="range"] { flex: 1; accent-color: var(--accent); }
+        input[type="color"] { border: none; width: 34px; height: 28px; border-radius: 4px; cursor: pointer; background: none; }
+        
+        select {
+            width: 100%;
+            padding: 8px;
+            background-color: var(--bg-dark);
+            color: var(--text-normal);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        .preview-box {
+            position: relative;
+            width: 240px;
+            height: 240px;
+            background-image: 
+                linear-gradient(45deg, #383a40 25%, transparent 25%), 
+                linear-gradient(-45deg, #383a40 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #383a40 75%), 
+                linear-gradient(-45deg, transparent 75%, #383a40 75%);
+            background-size: 16px 16px;
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border);
+            margin-bottom: 12px;
+        }
+
+        .preview-box.circle-mask::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border: 2px dashed rgba(88, 101, 242, 0.9);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        button:hover { background-color: var(--accent-hover); }
+        button:active { transform: scale(0.98); }
+        button:disabled { background-color: #4e5058; cursor: not-allowed; transform: none; }
+
+        .btn-secondary { background-color: #4e5058; padding: 4px 8px; font-size: 0.75rem; width: auto; }
+        .btn-secondary:hover { background-color: #6d6f78; }
+        .btn-success { background-color: var(--success); }
+        .btn-success:hover { background-color: #1a8547; }
+        .btn-danger { background-color: var(--danger); }
+        .btn-danger:hover { background-color: #a92b2f; }
+
+        .vault-container {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .vault-item {
+            background-color: var(--bg-dark);
+            padding: 8px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            border: 1px solid var(--border);
+        }
+
+        .sync-row {
+            display: flex;
+            gap: 6px;
+            width: 100%;
+            margin-top: 8px;
+        }
+
+        .info-text { font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-top: 6px; }
+
+        @media (max-width: 768px) {
+            .studio-wrapper { flex-direction: column; }
+            .controls-pane { max-height: none; }
+            .preview-pane { position: relative; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="studio-wrapper">
+    <!-- Controls Pane -->
+    <div class="controls-pane">
+        <div>
+            <h2>Discord Studio Master Pro</h2>
+            <div class="subtitle">IndexedDB Engine + Multi-Device Backup Pipeline</div>
+        </div>
+
+        <label class="upload-box" for="imageInput">
+            <span id="uploadLabel">📁 Drag or Upload Transparent PNG</span>
+            <input type="file" id="imageInput" accept="image/png, image/webp">
+        </label>
+
+        <!-- Resolution Profile Choice -->
+        <div class="control-group">
+            <h3>Output Configuration</h3>
+            <label for="resSelect">Export Dimension Profile</label>
+            <select id="resSelect">
+                <option value="1024">1024 x 1024 Master (Ultimate Sharpness)</option>
+                <option value="512">512 x 512 HD Standard</option>
+                <option value="256">256 x 256 Regular Display</option>
+                <option value="128">128 x 128 Compact Thumbnail</option>
+                <option value="source">Keep Original Upload Proportions</option>
+            </select>
+        </div>
+
+        <!-- Scale, Crop & Rotation -->
+        <div class="control-group">
+            <h3>Transform & Alignment</h3>
+            <label for="scaleRange">Scale <span id="scaleVal">75</span>%</label>
+            <input type="range" id="scaleRange" min="10" max="200" value="75" disabled>
+            
+            <label for="rotateRange" style="margin-top: 8px;">Rotation <span id="rotateVal">0</span>°</label>
+            <input type="range" id="rotateRange" min="-180" max="180" value="0" disabled>
+        </div>
+
+        <!-- Position Controls -->
+        <div class="control-group">
+            <label>
+                Manual Axis Centering
+                <button class="btn-secondary" id="centerBtn" disabled>Snap Center</button>
+            </label>
+            <div class="control-row" style="margin-bottom: 5px;">
+                <span style="font-size:0.7rem; color:var(--text-muted); width: 12px;">X:</span>
+                <input type="range" id="offsetX" min="-300" max="300" value="0" disabled>
+            </div>
+            <div class="control-row">
+                <span style="font-size:0.7rem; color:var(--text-muted); width: 12px;">Y:</span>
+                <input type="range" id="offsetY" min="-300" max="300" value="0" disabled>
+            </div>
+        </div>
+
+        <!-- Background Controls -->
+        <div class="control-group">
+            <h3>Canvas Background Fill</h3>
+            <label class="checkbox-label">
+                <input type="checkbox" id="enableBg" disabled> Solid Background Color
+            </label>
+            <div class="control-row" style="margin-top: 5px;">
+                <input type="color" id="bgColorPicker" value="#313338" disabled>
+                <span>Select Shade Swatch</span>
+            </div>
+        </div>
+
+        <!-- Primary Outline -->
+        <div class="control-group">
+            <h3>Inner Outline Profile</h3>
+            <label class="checkbox-label">
+                <input type="checkbox" id="enableOutline1" disabled> Primary Boundary Border
+            </label>
+            <div class="control-row" style="margin-top: 5px;">
+                <input type="color" id="outlineColor1" value="#ffffff" disabled>
+                <input type="range" id="outlineWidth1" min="1" max="25" value="4" disabled>
+            </div>
+        </div>
+
+        <!-- Secondary Outline -->
+        <div class="control-group">
+            <h3>Outer Outline Profile</h3>
+            <label class="checkbox-label">
+                <input type="checkbox" id="enableOutline2" disabled> Secondary Sticker Border
+            </label>
+            <div class="control-row" style="margin-top: 5px;">
+                <input type="color" id="outlineColor2" value="#5865f2" disabled>
+                <input type="range" id="outlineWidth2" min="1" max="35" value="8" disabled>
+            </div>
+        </div>
+
+        <!-- Visual Image Adjustments -->
+        <div class="control-group">
+            <h3>Image Effects Filters</h3>
+            <label for="brightRange">Brightness <span id="brightVal">100</span>%</label>
+            <input type="range" id="brightRange" min="50" max="200" value="100" disabled>
+            <label for="contrastRange" style="margin-top: 5px;">Contrast <span id="contrastVal">100</span>%</label>
+            <input type="range" id="contrastRange" min="50" max="200" value="100" disabled>
+        </div>
+    </div>
+
+    <!-- Preview Pane -->
+    <div class="preview-pane">
+        <div class="preview-box circle-mask" id="previewContainer">
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <label class="checkbox-label" style="margin-bottom: 15px;">
+            <input type="checkbox" id="toggleMask" checked> Toggle Circle Preview Overlay
+        </label>
+
+        <button id="downloadBtn" style="margin-bottom: 12px;" disabled>Download Final Avatar</button>
+        <div class="info-text" id="dimensionInfo">Upload state: Idle</div>
+
+        <hr style="width: 100%; border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
+
+        <!-- Project Vault via IndexedDB -->
+        <h3 style="align-self: flex-start; font-size: 0.8rem;">💾 Unlimited IndexedDB Vault</h3>
+        <div style="display: flex; gap: 6px; width: 100%;">
+            <input type="text" id="vaultName" placeholder="Project Name..." style="flex:1; padding: 6px; background: var(--bg-dark); border:1px solid var(--border); border-radius:4px; color:white; font-size:0.8rem;">
+            <button class="btn-secondary btn-success" id="saveVaultBtn" style="padding:6px 12px;" disabled>Save</button>
+        </div>
+        
+        <div class="vault-container" id="vaultContainer"></div>
+
+        <!-- Cross-Device Sync Controls -->
+        <div class="sync-row">
+            <button class="btn-secondary" id="exportBackupBtn" style="flex: 1;">📤 Export Backup (.JSON)</button>
+            <button class="btn-secondary" id="importBackupTrigger" style="flex: 1;">📥 Import Backup</button>
+            <input type="file" id="backupFileInput" accept=".json" style="display: none;">
+        </div>
+        <div class="info-text" style="color: var(--text-muted); margin-top: 4px;">Sync and backup layouts flawlessly across machines.</div>
+    </div>
+</div>
+
+<script>
+    // Elements Mapping
+    const imageInput = document.getElementById('imageInput');
+    const uploadLabel = document.getElementById('uploadLabel');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { alpha: true });
+    
+    const resSelect = document.getElementById('resSelect');
+    const scaleRange = document.getElementById('scaleRange');
+    const scaleVal = document.getElementById('scaleVal');
+    const rotateRange = document.getElementById('rotateRange');
+    const rotateVal = document.getElementById('rotateVal');
+    const offsetX = document.getElementById('offsetX');
+    const offsetY = document.getElementById('offsetY');
+    const centerBtn = document.getElementById('centerBtn');
+    
+    const enableBg = document.getElementById('enableBg');
+    const bgColorPicker = document.getElementById('bgColorPicker');
+    
+    const enableOutline1 = document.getElementById('enableOutline1');
+    const outlineColor1 = document.getElementById('outlineColor1');
+    const outlineWidth1 = document.getElementById('outlineWidth1');
+    
+    const enableOutline2 = document.getElementById('enableOutline2');
+    const outlineColor2 = document.getElementById('outlineColor2');
+    const outlineWidth2 = document.getElementById('outlineWidth2');
+
+    const brightRange = document.getElementById('brightRange');
+    const brightVal = document.getElementById('brightVal');
+    const contrastRange = document.getElementById('contrastRange');
+    const contrastVal = document.getElementById('contrastVal');
+    
+    const toggleMask = document.getElementById('toggleMask');
+    const previewContainer = document.getElementById('previewContainer');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const dimensionInfo = document.getElementById('dimensionInfo');
+    
+    const vaultName = document.getElementById('vaultName');
+    const saveVaultBtn = document.getElementById('saveVaultBtn');
+    const vaultContainer = document.getElementById('vaultContainer');
+    
+    const exportBackupBtn = document.getElementById('exportBackupBtn');
+    const importBackupTrigger = document.getElementById('importBackupTrigger');
+    const backupFileInput = document.getElementById('backupFileInput');
+
+    let img = null;
+    let baseFileName = 'avatar.png';
+    let rawImgDataStr = ''; 
+    let renderRequested = false;
+    let db = null;
+
+    // Initialize IndexedDB Datastore Engine
+    const dbRequest = indexedDB.open('DiscordPfpStudioStore', 1);
+    dbRequest.onupgradeneeded = (e) => {
+        db = e.target.result;
+        if (!db.objectStoreNames.contains('projects')) {
+            db.createObjectStore('projects', { keyPath: 'id' });
+        }
+    };
+    dbRequest.onsuccess = (e) => {
+        db = e.target.result;
+        updateVaultDisplay();
+    };
+
+    imageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        loadImgFromFile(file);
+    });
+
+    function loadImgFromFile(file) {
+        baseFileName = file.name;
+        uploadLabel.textContent = "📁 " + file.name;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            rawImgDataStr = event.target.result;
+            initImageState();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function initImageState() {
+        img = new Image();
+        img.onload = () => {
+            dimensionInfo.textContent = `Asset Resolution: ${img.width}x${img.height}`;
+            
+            [scaleRange, rotateRange, offsetX, offsetY, centerBtn, enableBg, bgColorPicker, 
+             enableOutline1, outlineColor1, outlineWidth1, enableOutline2, outlineColor2, outlineWidth2,
+             brightRange, contrastRange, downloadBtn, saveVaultBtn]
+            .forEach(el => el.disabled = false);
+
+            offsetX.min = -img.width; offsetX.max = img.width;
+            offsetY.min = -img.height; offsetY.max = img.height;
+
+            triggerRender();
+        };
+        img.src = rawImgDataStr;
+    }
+
+    // Input Pipeline Triggers
+    [scaleRange, rotateRange, offsetX, offsetY, enableBg, bgColorPicker, 
+     enableOutline1, outlineColor1, outlineWidth1, enableOutline2, outlineColor2, outlineWidth2,
+     brightRange, contrastRange, resSelect]
+    .forEach(el => {
+        el.addEventListener('input', () => {
+            scaleVal.textContent = scaleRange.value;
+            rotateVal.textContent = rotateRange.value;
+            brightVal.textContent = brightRange.value;
+            contrastVal.textContent = contrastRange.value;
+            triggerRender();
+        });
+        el.addEventListener('change', triggerRender);
+    });
+
+    centerBtn.addEventListener('click', () => {
+        offsetX.value = 0;
+        offsetY.value = 0;
+        triggerRender();
+    });
+
+    toggleMask.addEventListener('change', () => {
+        previewContainer.classList.toggle('circle-mask', toggleMask.checked);
+    });
+
+    function triggerRender() {
+        if (renderRequested) return;
+        renderRequested = true;
+        requestAnimationFrame(() => {
+            renderCanvas();
+            renderRequested = false;
+        });
+    }
+
+    function drawGpuEdgeStickers(targetCtx, imageObj, x, y, w, h, outlineWidth, outlineColor) {
+        targetCtx.save();
+        targetCtx.shadowColor = outlineColor;
+        targetCtx.shadowBlur = 0; 
+        const s = outlineWidth;
+        const vectors = [[s, 0], [-s, 0], [0, s], [0, -s], [s, s], [-s, -s], [s, -s], [-s, s]];
+        for (let i = 0; i < vectors.length; i++) {
+            targetCtx.shadowOffsetX = vectors[i][0];
+            targetCtx.shadowOffsetY = vectors[i][1];
+            targetCtx.drawImage(imageObj, x, y, w, h);
+        }
+        targetCtx.restore();
+    }
+
+    function renderCanvas() {
+        if (!img) return;
+
+        const profile = resSelect.value;
+        let wMaster = img.width;
+        let hMaster = img.height;
+
+        if (profile !== 'source') {
+            wMaster = parseInt(profile);
+            hMaster = parseInt(profile);
+        }
+
+        canvas.width = wMaster;
+        canvas.height = hMaster;
+        ctx.clearRect(0, 0, wMaster, hMaster);
+
+        if (enableBg.checked) {
+            ctx.fillStyle = bgColorPicker.value;
+            ctx.fillRect(0, 0, wMaster, hMaster);
+        }
+
+        ctx.save();
+        ctx.filter = `brightness(${brightRange.value}%) contrast(${contrastRange.value}%)`;
+
+        const scale = parseFloat(scaleRange.value) / 100;
+        const rot = parseFloat(rotateRange.value) * Math.PI / 180;
+        
+        const wRender = wMaster * scale;
+        const hRender = hMaster * scale;
+        const cx = wMaster / 2 + parseFloat(offsetX.value);
+        const cy = hMaster / 2 + parseFloat(offsetY.value);
+
+        ctx.imageSmoothingEnabled = true;
+              
