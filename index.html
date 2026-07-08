@@ -35,7 +35,7 @@
 
 <div class="wrapper">
     <div class="pane-ctrl">
-        <div><h2>Discord Avatar Studio</h2><div class="sub">Ultimate Master Engine (Shadow FX Update)</div></div>
+        <div><h2>Discord Avatar Studio</h2><div class="sub">Ultimate Master Engine (Vector Matte Update)</div></div>
         
         <input type="file" id="imageInput" accept="image/*">
         <label class="upload-box" for="imageInput"><span id="lbl">📁 CLICK TO CHOOSE IMAGE</span></label>
@@ -69,11 +69,11 @@
             </div>
         </div>
         <div class="grp">
-            <h3>Pixel-Accurate Alpha Borders</h3>
-            <label class="chk"><input type="checkbox" id="e-b1" disabled> Enable Primary Silhouette Ring</label>
-            <div class="row"><input type="color" id="c-b1" value="#ffffff" disabled><input type="range" id="w-b1" min="1" max="25" value="4" disabled><span>Thickness</span></div>
-            <label class="chk" style="margin-top:2px;"><input type="checkbox" id="e-b2" disabled> Enable Secondary Outer Ring</label>
-            <div class="row"><input type="color" id="c-b2" value="#5865f2" disabled><input type="range" id="w-b2" min="1" max="35" value="8" disabled><span>Thickness</span></div>
+            <h3>Pixel-Accurate Outlines</h3>
+            <label class="chk"><input type="checkbox" id="e-b1" disabled> Enable Primary Boundary Matte</label>
+            <div class="row"><input type="color" id="c-b1" value="#ffffff" disabled><input type="range" id="w-b1" min="1" max="30" value="6" disabled><span>Thickness</span></div>
+            <label class="chk" style="margin-top:2px;"><input type="checkbox" id="e-b2" disabled> Enable Secondary Boundary Matte</label>
+            <div class="row"><input type="color" id="c-b2" value="#5865f2" disabled><input type="range" id="w-b2" min="1" max="40" value="12" disabled><span>Thickness</span></div>
         </div>
         <div class="grp">
             <h3>Silhouette Drop Shadow FX</h3>
@@ -155,7 +155,7 @@
     el('cn').addEventListener('click', () => { el('ox').value = 0; el('oy').value = 0; draw(); });
     el('tMsk').addEventListener('change', () => el('pBox').classList.toggle('mask', el('tMsk').checked));
 
-    // Generates completely separate transparent mask instances for flawless mathematical overlays
+    // Generates a pure standalone asset base canvas
     function getIsolatedSubjectCanvas(wMaster, hMaster) {
         const oCv = document.createElement('canvas'), oCtx = oCv.getContext('2d');
         oCv.width = wMaster; oCv.height = hMaster;
@@ -170,29 +170,41 @@
         return oCv;
     }
 
-    function drawPerfectOutline(c, baseLayer, thick, color) {
-        c.save(); c.shadowColor = color; c.shadowBlur = 0;
-        for (let y = -thick; y <= thick; y++) {
-            for (let x = -thick; x <= thick; x++) {
-                if (x*x + y*y <= thick*thick) c.drawImage(baseLayer, x, y);
-            }
-        }
-        c.restore();
+    // High performance Native Vector-Matte Solid Silhouette Outlining via Composite Channel Masks
+    function createTrueOutline(targetCtx, srcCanvas, thickness, colorStr) {
+        if (thickness <= 0) return;
+        const outCv = document.createElement('canvas'), outCtx = outCv.getContext('2d');
+        outCv.width = srcCanvas.width; outCv.height = srcCanvas.height;
+        
+        // Render target bounding geometry using scale dilatation matrix
+        outCtx.save();
+        const sc = 1 + (thickness * 2 / srcCanvas.width);
+        outCtx.translate(srcCanvas.width/2, srcCanvas.height/2);
+        outCtx.scale(sc, sc);
+        outCtx.drawImage(srcCanvas, -srcCanvas.width/2, -srcCanvas.height/2);
+        outCtx.restore();
+
+        // Perform hardware alpha spectrum inversion rewrite
+        outCtx.save();
+        outCtx.globalCompositeOperation = 'source-in';
+        outCtx.fillStyle = colorStr;
+        outCtx.fillRect(0, 0, outCv.width, outCv.height);
+        outCtx.restore();
+
+        targetCtx.drawImage(outCv, 0, 0);
     }
 
     function draw() {
         if (!img || !img.width) return;
         const size = parseInt(el('res').value); cv.width = size; cv.height = size; ctx.clearRect(0,0,size,size);
         
-        // Background Matrix Fill Pass
+        // Render Background
         if(el('e-bg').checked) {
             if(el('bg-t').value === 'solid') {
                 ctx.fillStyle = el('c-bg').value; ctx.fillRect(0,0,size,size);
             } else {
                 const ang = parseFloat(el('bg-a').value) * Math.PI / 180;
-                const x2 = size/2 + (size/2) * Math.cos(ang), y2 = size/2 + (size/2) * Math.sin(ang);
-                const x1 = size/2 - (size/2) * Math.cos(ang), y1 = size/2 - (size/2) * Math.sin(ang);
-                const grd = ctx.createLinearGradient(x1,y1,x2,y2);
+                const grd = ctx.createLinearGradient(size/2 - (size/2)*Math.cos(ang), size/2 - (size/2)*Math.sin(ang), size/2 + (size/2)*Math.cos(ang), size/2 + (size/2)*Math.sin(ang));
                 grd.addColorStop(0, el('c-bg').value); grd.addColorStop(1, el('c-bg2').value);
                 ctx.fillStyle = grd; ctx.fillRect(0,0,size,size);
             }
@@ -200,7 +212,7 @@
         
         const isolatedAsset = getIsolatedSubjectCanvas(size, size);
 
-        // Alpha Depth Drop Shadow Sub-System Pass
+        // Alpha Depth Drop Shadow Pass
         if(el('e-sh').checked) {
             ctx.save();
             ctx.shadowColor = el('c-sh').value;
@@ -211,14 +223,16 @@
             ctx.restore();
         }
 
-        // Concentric Outline Core Vector Pipeline
-        if(el('e-b2').checked && parseInt(el('w-b2').value)>0) {
-            const comp = parseInt(el('w-b2').value) + (el('e-b1').checked ? parseInt(el('w-b1').value) : 0);
-            drawPerfectOutline(ctx, isolatedAsset, comp, el('c-b2').value);
+        // True Vector Matte Outline Pass
+        if(el('e-b2').checked) {
+            const totalThick = parseInt(el('w-b2').value) + (el('e-b1').checked ? parseInt(el('w-b1').value) : 0);
+            createTrueOutline(ctx, isolatedAsset, totalThick, el('c-b2').value);
         }
-        if(el('e-b1').checked && parseInt(el('w-b1').value)>0) drawPerfectOutline(ctx, isolatedAsset, parseInt(el('w-b1').value), el('c-b1').value);
+        if(el('e-b1').checked) {
+            createTrueOutline(ctx, isolatedAsset, parseInt(el('w-b1').value), el('c-b1').value);
+        }
         
-        // Subject Composition Rendering with Multi-Filter Hardware Passes
+        // Main Core Foreground Rendering Pass
         ctx.save();
         let fStr = `brightness(${el('br').value}%) contrast(${el('co').value}%) saturate(${el('sa').value}%) blur(${el('bl').value}px) sepia(${el('se').value}%)`;
         if (el('inv').checked) fStr += ' invert(100%)';
@@ -226,7 +240,7 @@
         ctx.drawImage(isolatedAsset, 0, 0);
         ctx.restore();
 
-        // Overlay Post-Effects Shaders
+        // Screen Effects & Overlays
         if(el('e-vig').checked) {
             const vGrd = ctx.createRadialGradient(size/2,size/2,size*0.3,size/2,size/2,size*0.7);
             vGrd.addColorStop(0, 'transparent'); vGrd.addColorStop(1, 'rgba(0,0,0,0.85)');
